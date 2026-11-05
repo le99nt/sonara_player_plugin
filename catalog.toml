@@ -1,0 +1,32 @@
+# Локальный источник плагинов Noctalia (obloble).
+# Index of every plugin this source ships: one [[plugin]] row per plugin
+# subdirectory. The per-plugin plugin.toml stays authoritative; the host
+# re-reads it on enable.
+
+[[plugin]]
+id = "obloble/workspace-cleaner"
+name = "Workspace Clean-Up Assistant"
+version = "1.0.0"
+updated_at = 1793902640
+added_at = 1793902640
+author = "obloble"
+license = "MIT"
+icon = "broom"
+description = "Headless-сервис: напоминает о неактивных окнах терминалов и браузеров, простаивающих более 20 минут. Не закрывает окна сам."
+deprecated = false
+plugin_api = 3
+tags = ["service", "niri", "productivity", "utility"]
+
+[[plugin]]
+id = "obloble/quick-web-search"
+name = "Quick Web-Search Launcher"
+version = "1.0.0"
+updated_at = 1793902640
+added_at = 1793902640
+author = "obloble"
+license = "MIT"
+icon = "world"
+description = "Launcher Provider: быстрый веб-поиск по префиксам ':g ' (Google), ':y ' (YouTube), ':gh ' (GitHub)."
+deprecated = false
+plugin_api = 3
+tags = ["launcher", "web", "productivity", "utility"]

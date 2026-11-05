@@ -1,0 +1,42 @@
+# ============================================================
+# Quick Web-Search Launcher
+# Манифест плагина для Noctalia Shell (v5+)
+# ============================================================
+
+# Обязательные метаданные (верхний уровень манифеста)
+id = "obloble/quick-web-search"
+name = "Quick Web-Search Launcher"
+author = "obloble"
+version = "1.0.0"
+
+# Максимальный уровень plugin API, который использует код плагина.
+# Плагин использует только базовые API: noctalia.log, noctalia.runAsync
+# и launcher.setResults.
+plugin_api = 3
+license = "MIT"
+icon = "world"
+
+# Тип плагина задается секцией [[launcher_provider]] ниже: провайдер,
+# расширяющий меню запуска (лаунчер) Noctalia.
+description = """
+Launcher Provider для Noctalia Shell: добавляет в меню запуска быстрый \
+веб-поиск по префиксам — ':g ' (Google), ':y ' (YouTube), ':gh ' (GitHub). \
+Ввод вида ':g как настроить niri' превращается в готовую поисковую ссылку, \
+которая открывается системным обработчиком URL (xdg-open) по нажатию Enter.
+"""
+tags = ["launcher", "web", "productivity", "utility"]
+
+# ------------------------------------------------------------
+# Точка входа: провайдер лаунчера.
+# Хост вызывает глобальные функции onQuery(text) и onActivate(id)
+# из init.luau при вводе и при активации результата.
+# include_in_global_search = true — провайдер получает ВЕСЬ текст ввода,
+# поэтому префиксы ':g ', ':y ', ':gh ' разбираются в самом коде.
+# debounce_ms сглаживает вызовы onQuery при быстром наборе текста.
+# ------------------------------------------------------------
+[[launcher_provider]]
+id = "provider"
+entry = "init.luau"
+glyph = "world"
+include_in_global_search = true
+debounce_ms = 100
