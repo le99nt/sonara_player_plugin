@@ -1,0 +1,6 @@
+{
+  "settings.github_token.label": "GitHub personal access token",
+  "settings.github_token.description": "Create a classic token with the 'notifications' scope at github.com/settings/tokens and paste it here. Stored locally in Noctalia settings.",
+  "settings.poll_interval_sec.label": "Polling interval (seconds)",
+  "settings.poll_interval_sec.description": "How often to check GitHub for unread notifications (60-600 s). The notifications API allows ~50 requests/hour."
+}

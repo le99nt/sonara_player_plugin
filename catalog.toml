@@ -30,3 +30,17 @@ description = "Launcher Provider: быстрый веб-поиск по преф
 deprecated = false
 plugin_api = 3
 tags = ["launcher", "web", "productivity", "utility"]
+
+[[plugin]]
+id = "obloble/github-notifications"
+name = "GitHub Notifications"
+version = "1.0.0"
+updated_at = 1793945313
+added_at = 1793945313
+author = "obloble"
+license = "MIT"
+icon = "bell"
+description = "GitHub unread notifications in the bar: a bell widget with a counter and a panel with the unread list and notification history. Supports mark-as-read and opening items on github.com."
+deprecated = false
+plugin_api = 22
+tags = ["bar", "panel", "github", "notifications", "network"]
