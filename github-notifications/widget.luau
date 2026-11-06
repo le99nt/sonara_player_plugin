@@ -9,7 +9,7 @@
 -- ============================================================================
 
 -- Общий модуль (require, API 22).
-local shared = require("shared.luau")
+local shared = require("./shared.luau")
 
 local inFlight = false
 
