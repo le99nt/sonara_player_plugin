@@ -2,9 +2,9 @@
 -- ============================================================================
 -- GitHub Notifications — виджет верхней панели ([[widget]] в plugin.toml).
 --
--- Колокольчик + счётчик непрочитанных уведомлений GitHub.
+-- Компактная иконка GitHub (+ счётчик непрочитанных при их наличии).
 -- Периодически (poll_interval_sec) запрашивает /notifications, обновляет
--- state.json (общий с панелью) и перерисовывает себя через barWidget.*.
+-- state.json (общий с панелью) и перерисовывает себя через barWidget.render.
 -- Клик по виджету открывает панель уведомлений.
 -- ============================================================================
 
@@ -13,37 +13,63 @@ local shared = require("./shared.luau")
 
 local inFlight = false
 
+--- Текущий счётчик непрочитанных.
+local unreadCount = 0
+
+--- Описание последней ошибки запроса (nil — ошибки нет).
+local lastError = nil
+
 --- Токен из настроек ([[setting]] github_token, читается напрямую,
 --- чтобы линтер и хост видели использование настройки в entry-файле).
 local function getToken()
 	return tostring(noctalia.getConfig("github_token") or "")
 end
 
---- Текущий счётчик непрочитанных (для тултипа/логики).
-local unreadCount = 0
-
 -- ---------------------------------------------------------------------------
--- Отрисовка виджета
+-- Отрисовка виджета: компактная иконка brand-github + счётчик.
+-- Цвета берутся из активной палитры Noctalia (с fallback'ами).
 -- ---------------------------------------------------------------------------
 
-local function renderIcon()
+local function renderWidget()
+	local accent = noctalia.getColor("primary") or "#89b4fa"
+	local fg = noctalia.getColor("on_surface") or "#cdd6f4"
+
+	-- Токен не задан: нейтральная иконка и подсказка в тултипе.
 	if getToken() == "" then
-		-- Токен не задан: серый колокольчик и подсказка в тултипе.
-		barWidget.setGlyph("bell-off")
-		barWidget.setText("")
-		barWidget.setColor("on_surface")
+		barWidget.render(ui.glyph({ name = "brand-github", size = 13, color = fg }))
 		barWidget.setTooltip("GitHub Notifications: set your token in plugin settings")
 		return
 	end
 
-	barWidget.setGlyph("bell")
+	-- Ошибка последнего запроса: приглушённая иконка, причина в тултипе.
+	if lastError ~= nil then
+		barWidget.render(ui.glyph({ name = "brand-github", size = 13, color = fg }))
+		barWidget.setTooltip("GitHub Notifications: " .. lastError)
+		return
+	end
+
+	-- Нормальное состояние: иконка GitHub; при непрочитанных она
+	-- подсвечивается цветом темы, рядом выводится счётчик.
+	local children = {
+		ui.glyph({
+			name = "brand-github",
+			size = 13,
+			color = unreadCount > 0 and accent or fg,
+		}),
+	}
 	if unreadCount > 0 then
-		barWidget.setText(tostring(unreadCount))
-		barWidget.setColor("primary")
+		table.insert(children, ui.label({
+			text = tostring(unreadCount),
+			fontSize = 10,
+			color = accent,
+		}))
+	end
+
+	barWidget.render(ui.row({ gap = 4, align = "center" }, children))
+
+	if unreadCount > 0 then
 		barWidget.setTooltip(("GitHub: %d unread notification(s)"):format(unreadCount))
 	else
-		barWidget.setText("")
-		barWidget.setColor("on_surface")
 		barWidget.setTooltip("GitHub: no unread notifications")
 	end
 end
@@ -60,7 +86,7 @@ local function refresh()
 	-- Без токена просто рисуем «пустой» виджет и не дёргаем API.
 	if getToken() == "" then
 		unreadCount = 0
-		renderIcon()
+		renderWidget()
 		return
 	end
 
@@ -68,19 +94,19 @@ local function refresh()
 	local started = shared.fetch(getToken(), function(ok, unread, read, err)
 		inFlight = false
 		if not ok then
-			noctalia.log("[GitHub] widget fetch failed: " .. tostring(err))
-			barWidget.setGlyph("bell-off")
-			barWidget.setText("")
-			barWidget.setTooltip("GitHub Notifications: fetch failed (" .. tostring(err) .. ")")
+			lastError = tostring(err)
+			noctalia.log("[GitHub] widget fetch failed: " .. lastError)
+			renderWidget()
 			return
 		end
+		lastError = nil
 
 		local state = shared.loadState()
 		shared.mergeFetched(state, unread, read)
 		shared.saveState(state)
 
 		unreadCount = #state.unread
-		renderIcon()
+		renderWidget()
 		noctalia.log("[GitHub] widget: " .. tostring(unreadCount) .. " unread")
 	end)
 
@@ -112,6 +138,6 @@ noctalia.setUpdateInterval(pollSec * 1000)
 -- Первый рендер — сразу из сохранённого состояния, не дожидаясь сети.
 local state = shared.loadState()
 unreadCount = #state.unread
-renderIcon()
+renderWidget()
 
 noctalia.log("[GitHub] Виджет загружен (интервал " .. tostring(pollSec) .. " сек)")

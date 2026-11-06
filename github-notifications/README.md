@@ -11,15 +11,15 @@
 
 ## 🇷🇺 Русский
 
-Виджет для верхней панели **Noctalia Shell**: счётчик непрочитанных уведомлений GitHub в виде колокольчика и панель со списком уведомлений и историей.
+Компактный виджет для верхней панели **Noctalia Shell**: иконка GitHub со счётчиком непрочитанных уведомлений и панель со списком уведомлений и историей.
 
 ### 💡 Зачем это нужно
 
-Не открывайте GitHub «на всякий случай» — виджет покажет колокольчик со счётчиком, как только появятся новые уведомления. Клик — и перед вами весь список: кто, куда и когда упомянул вас.
+Не открывайте GitHub «на всякий случай» — виджет подсветит иконку GitHub со счётчиком, как только появятся новые уведомления. Клик — и перед вами весь список: кто, куда и когда упомянул вас.
 
 ### ✨ Возможности
 
-- 🔔 Колокольчик на панели с счётчиком непрочитанных (подсвечивается при наличии новых)
+- 🔔 Компактная иконка GitHub на панели со счётчиком непрочитанных (подсвечивается при наличии новых)
 - 📋 Панель с двумя вкладками: **Unread** (непрочитанные) и **History** (история прочитанных, до 50 записей)
 - ✔️ Отметка «прочитано»: по одному (кнопка ✓) или все сразу
 - 🔄 Обновление по клику + фоновый опрос каждые 2 минуты (настраивается)
@@ -50,7 +50,7 @@ noctalia msg plugins enable obloble/github-notifications
 2. Создайте **classic token** со скоупом **`notifications`** (достаточно только его)
 3. Вставьте токен в **Настройки → Плагины → GitHub Notifications → GitHub personal access token**
 
-Без токена виджет показывает серый колокольчик, а панель — инструкцию с кнопкой перехода в настройки.
+Без токена виджет показывает нейтральную иконку GitHub, а панель — инструкцию с кнопкой перехода в настройки.
 
 ### ⚙️ Настройки
 
@@ -61,7 +61,7 @@ noctalia msg plugins enable obloble/github-notifications
 
 ### 🛠 Как это работает
 
-- **Виджет** (`widget.luau`): тик каждые `poll_interval_sec` → `GET /notifications` через `noctalia.http` → обновление `state.json` в папке данных плагина → отрисовка `barWidget.setGlyph/setText/setColor`.
+- **Виджет** (`widget.luau`): тик каждые `poll_interval_sec` → `GET /notifications` через `noctalia.http` → обновление `state.json` в папке данных плагина → компактная отрисовка через `barWidget.render` (иконка + счётчик).
 - **Панель** (`panel.luau`): при открытии (`onOpen`) читает `state.json`, рисует список через `panel.render(ui-дерево)`, может сама выполнять запросы (обновить / отметить прочитанным / отметить все).
 - `state.json` — «мост» между виджетом и панелью, которые являются отдельными runtime'ами.
 - История пополняется автоматически: прочитанные уведомления попадают в неё без дублей, лимит — 50 записей.
@@ -72,7 +72,7 @@ noctalia msg plugins enable obloble/github-notifications
 github-notifications/
 ├── plugin.toml        # Манифест: [[widget]], [[panel]], [[setting]]
 ├── shared.luau        # GitHub API, история, утилиты (require-модуль)
-├── widget.luau        # Виджет-колокольчик на панели
+├── widget.luau        # Виджет-иконка GitHub на панели
 ├── panel.luau         # Панель уведомлений и истории
 └── translations/en.json
 ```
@@ -87,15 +87,15 @@ noctalia plugins lint github-notifications   # 0 errors, 0 warnings
 
 ## 🇬🇧 English
 
-A bar widget for **Noctalia Shell**: a GitHub unread-notifications bell with a counter and a panel with the notification list and history.
+A bar widget for **Noctalia Shell**: a compact GitHub icon with an unread counter and a panel with the notification list and history.
 
 ### 💡 Why you need it
 
-Stop opening GitHub "just in case" — the widget shows a bell with a counter as soon as new notifications arrive. One click, and you see everything: who mentioned you, where and when.
+Stop opening GitHub "just in case" — the widget highlights the GitHub icon with a counter as soon as new notifications arrive. One click, and you see everything: who mentioned you, where and when.
 
 ### ✨ Features
 
-- 🔔 Bar bell widget with an unread counter (highlighted when there are new items)
+- 🔔 Compact GitHub icon in the bar with an unread counter (highlighted when there are new items)
 - 📋 Panel with two tabs: **Unread** and **History** (up to 50 read items)
 - ✔️ Mark as read: one by one (✓ button) or all at once
 - 🔄 Manual refresh + background polling every 2 minutes (configurable)
@@ -126,7 +126,7 @@ noctalia msg plugins enable obloble/github-notifications
 2. Create a **classic token** with the **`notifications`** scope (that one is enough)
 3. Paste it in **Settings → Plugins → GitHub Notifications → GitHub personal access token**
 
-Without a token the widget shows a dimmed bell, and the panel shows instructions with a button to open plugin settings.
+Without a token the widget shows a neutral GitHub icon, and the panel shows instructions with a button to open plugin settings.
 
 ### ⚙️ Settings
 
@@ -137,7 +137,7 @@ Without a token the widget shows a dimmed bell, and the panel shows instructions
 
 ### 🛠 How it works
 
-- **Widget** (`widget.luau`): ticks every `poll_interval_sec` → `GET /notifications` via `noctalia.http` → updates `state.json` in the plugin data dir → redraws itself with `barWidget.setGlyph/setText/setColor`.
+- **Widget** (`widget.luau`): ticks every `poll_interval_sec` → `GET /notifications` via `noctalia.http` → updates `state.json` in the plugin data dir → renders itself compactly via `barWidget.render` (icon + counter).
 - **Panel** (`panel.luau`): on open (`onOpen`) reads `state.json`, renders the list via `panel.render(ui tree)`, and can perform its own requests (refresh / mark read / mark all).
 - `state.json` is the "bridge" between the widget and the panel, which run in separate runtimes.
 - History grows automatically: read notifications are deduplicated and appended, capped at 50 entries.
@@ -148,7 +148,7 @@ Without a token the widget shows a dimmed bell, and the panel shows instructions
 github-notifications/
 ├── plugin.toml        # Manifest: [[widget]], [[panel]], [[setting]]
 ├── shared.luau        # GitHub API, history, helpers (require module)
-├── widget.luau        # Bar bell widget
+├── widget.luau        # GitHub icon bar widget
 ├── panel.luau         # Notifications & history panel
 └── translations/en.json
 ```

@@ -122,7 +122,7 @@ local function headerRow()
 		gap = 6,
 		align = "center",
 	}, {
-		ui.glyph({ name = "bell", size = 20, color = color("primary", "#89b4fa") }),
+		ui.glyph({ name = "brand-github", size = 20, color = color("primary", "#89b4fa") }),
 		ui.label({ text = "GitHub Notifications", fontSize = 16, flexGrow = 1 }),
 		-- Переключатель вкладок.
 		ui.button({
