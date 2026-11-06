@@ -31,7 +31,7 @@
 
 ```bash
 # Подключить источник плагинов
-noctalia msg plugins source add obloble git https://github.com/le99nt/noctalia-plugins
+noctalia msg plugins source add github-notifications git https://github.com/le99nt/github_notifications_plugin
 
 # Включить плагин
 noctalia msg plugins enable obloble/github-notifications
@@ -107,7 +107,7 @@ Stop opening GitHub "just in case" — the widget shows a bell with a counter as
 
 ```bash
 # Add the plugin source
-noctalia msg plugins source add obloble git https://github.com/le99nt/noctalia-plugins
+noctalia msg plugins source add github-notifications git https://github.com/le99nt/github_notifications_plugin
 
 # Enable the plugin
 noctalia msg plugins enable obloble/github-notifications
