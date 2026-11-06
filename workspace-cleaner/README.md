@@ -43,7 +43,7 @@ Headless-плагин для **Noctalia Shell**, который следит з�
 
 ```bash
 # Подключить источник плагинов
-noctalia msg plugins source add workspace-cleaner git https://github.com/le99nt/noctalia-plugins
+noctalia msg plugins source add workspace-cleaner git https://github.com/le99nt/worckspace_cleaner_plugin
 
 # Включить плагин
 noctalia msg plugins enable obloble/workspace-cleaner
@@ -135,7 +135,7 @@ Requires **Noctalia Shell v5+** and the **Niri** compositor.
 
 ```bash
 # Add the plugin source
-noctalia msg plugins source add workspace-cleaner git https://github.com/le99nt/noctalia-plugins
+noctalia msg plugins source add workspace-cleaner git https://github.com/le99nt/worckspace_cleaner_plugin
 
 # Enable the plugin
 noctalia msg plugins enable obloble/workspace-cleaner
