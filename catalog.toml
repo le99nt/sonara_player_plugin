@@ -6,13 +6,13 @@
 [[plugin]]
 id = "obloble/workspace-cleaner"
 name = "Workspace Clean-Up Assistant"
-version = "1.1.0"
-updated_at = 1793946740
+version = "2.0.0"
+updated_at = 1793948100
 added_at = 1793902640
 author = "obloble"
 license = "MIT"
 icon = "broom"
-description = "Headless-сервис: напоминает о неактивных окнах терминалов и браузеров, простаивающих более 20 минут. Не закрывает окна сам."
+description = "Headless-сервис: напоминает о неактивных окнах из настраиваемого списка наблюдения. Повторные напоминания, тихие часы, ежедневная сводка и опциональное автозакрытие окна после N напоминаний (по умолчанию выключено)."
 deprecated = false
 plugin_api = 3
 tags = ["service", "niri", "productivity", "utility"]
