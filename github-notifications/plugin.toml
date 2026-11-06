@@ -7,7 +7,7 @@
 id = "obloble/github-notifications"
 name = "GitHub Notifications"
 author = "obloble"
-version = "1.1.0"
+version = "1.1.1"
 
 # plugin_api 22: использует require() модулей (API 22) и замыкания
 # в ui.* колбэках (API 9). Остальное — базовые API.

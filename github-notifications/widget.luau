@@ -53,14 +53,14 @@ local function renderWidget()
 	local children = {
 		ui.glyph({
 			name = "brand-github",
-			size = 13,
+			size = 16,
 			color = unreadCount > 0 and accent or fg,
 		}),
 	}
 	if unreadCount > 0 then
 		table.insert(children, ui.label({
 			text = tostring(unreadCount),
-			fontSize = 10,
+			fontSize = 11,
 			color = accent,
 		}))
 	end

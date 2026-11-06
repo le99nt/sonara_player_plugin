@@ -10,8 +10,10 @@
 --   * открыть уведомление на github.com (xdg-open);
 --   * переключение вкладок Unread / History.
 --
--- Жизненный цикл панели: хост вызывает onOpen(context) при открытии и
--- onClose() при закрытии. Содержимое рисуется через panel.render(ui-дерево).
+-- Компактный дизайн: шапка в два ряда (заголовок+действия, вкладки),
+-- плотные карточки с мелкими мета-подписями.
+-- Жизненный цикл: хост вызывает onOpen(context) при открытии и onClose()
+-- при закрытии. Содержимое рисуется через panel.render(ui-дерево).
 -- ============================================================================
 
 -- Общий модуль (require, API 22).
@@ -21,7 +23,7 @@ local shared = require("./shared.luau")
 -- Локальное состояние панели (живёт, пока жив runtime entry)
 -- ---------------------------------------------------------------------------
 local mode = "unread" -- текущая вкладка: "unread" | "history"
-local statusText = "" -- строка статуса внизу/вверху панели
+local statusText = "" -- строка статуса
 local busy = false -- выполняется сетевой запрос
 local state = shared.loadState() -- данные из state.json
 
@@ -29,15 +31,15 @@ local state = shared.loadState() -- данные из state.json
 -- Утилиты UI
 -- ---------------------------------------------------------------------------
 
---- Цветовая палитра из темы Noctalia с безопасными fallback'ами.
+--- Цвет из палитры Noctalia с безопасным fallback'ом.
 local function color(role, fallback)
 	return noctalia.getColor(role) or fallback
 end
 
 --- Дерево-обёртка «карточка уведомления»: иконка типа, репозиторий,
---- заголовок, время, кнопки Open / Mark read.
+--- заголовок, время, кнопки Open / Mark read. Плотная вёрстка.
 ---@param e table Запись уведомления
----@param showActions boolean Показывать ли кнопки (для истории — только Open)
+---@param showActions boolean Показывать ли кнопку «прочитано»
 ---@return table UiNode
 local function notificationCard(e, showActions)
 	local onSurface = color("on_surface", "#cdd6f4")
@@ -47,9 +49,10 @@ local function notificationCard(e, showActions)
 
 	-- Кнопка «Открыть на github.com».
 	table.insert(actionButtons, ui.button({
-		text = "Open",
-		variant = "outline",
+		glyph = "external-link",
+		variant = "ghost",
 		controlSize = "sm",
+		tooltip = "Open on github.com",
 		onClick = function()
 			noctalia.runAsync("xdg-open " .. shared.shellQuote(shared.toHtmlUrl(e.apiUrl)))
 		end,
@@ -69,62 +72,112 @@ local function notificationCard(e, showActions)
 	end
 
 	return ui.row({
-		padding = 8,
+		padding = 6,
+		paddingH = 8,
 		gap = 8,
 		fill = color("surface", "#1e1e2e"),
-		radius = 8,
+		radius = 6,
 		align = "center",
 	}, {
 		-- Иконка типа уведомления.
 		ui.glyph({
 			name = shared.kindGlyph(e.kind),
-			size = 18,
+			size = 15,
 			color = color("primary", "#89b4fa"),
 		}),
-		-- Текстовый блок: репозиторий + заголовок + время.
+		-- Текстовый блок: репозиторий+время / заголовок.
 		ui.column({
 			flexGrow = 1,
-			gap = 2,
+			gap = 1,
 		}, {
 			ui.label({
-				text = e.repo .. " · " .. e.kind,
-				fontSize = 11,
+				text = e.repo .. " · " .. e.kind .. " · " .. shared.fmtAgo(e.updated),
+				fontSize = 10,
 				color = muted,
 			}),
 			ui.label({
 				text = e.title,
-				fontSize = 13,
+				fontSize = 12,
 				color = onSurface,
-				maxWidth = 380,
+				maxWidth = 400,
 			}),
 		}),
-		-- Возраст уведомления.
-		ui.label({
-			text = shared.fmtAgo(e.updated),
-			fontSize = 11,
-			color = muted,
-		}),
-		-- Кнопки действий.
+		-- Компактные иконки-действия справа.
 		ui.row({
-			gap = 4,
+			gap = 0,
 			align = "center",
 		}, actionButtons),
 	})
 end
 
---- Заголовок панели: название, кнопки Refresh / Mark all / Open GitHub.
+--- Шапка панели, ряд 1: иконка, заголовок, кнопки-действия.
 ---@return table UiNode
-local function headerRow()
-	local unreadLabel = ("Unread (%d)"):format(#state.unread)
-	local historyLabel = ("History (%d)"):format(#state.history)
-
+local function headerMainRow()
 	return ui.row({
 		gap = 6,
 		align = "center",
 	}, {
-		ui.glyph({ name = "brand-github", size = 20, color = color("primary", "#89b4fa") }),
-		ui.label({ text = "GitHub Notifications", fontSize = 16, flexGrow = 1 }),
-		-- Переключатель вкладок.
+		ui.glyph({ name = "brand-github", size = 17, color = color("primary", "#89b4fa") }),
+		ui.label({
+			text = "GitHub Notifications",
+			fontSize = 14,
+			fontWeight = "semibold",
+			flexGrow = 1,
+		}),
+		ui.button({
+			glyph = "refresh",
+			variant = "ghost",
+			controlSize = "sm",
+			tooltip = "Refresh",
+			onClick = function()
+				fetchNow()
+			end,
+		}),
+		ui.button({
+			glyph = "checks",
+			variant = "ghost",
+			controlSize = "sm",
+			tooltip = "Mark all as read",
+			onClick = function()
+				markAllRead()
+			end,
+		}),
+		ui.button({
+			glyph = "external-link",
+			variant = "ghost",
+			controlSize = "sm",
+			tooltip = "Open github.com/notifications",
+			onClick = function()
+				noctalia.runAsync("xdg-open 'https://github.com/notifications'")
+			end,
+		}),
+	})
+end
+
+--- Строка статуса (индикатор busy / ошибки / результата).
+--- Объявлена ДО tabsRow, чтобы ссылка на неё была валидной.
+---@return table UiNode
+local function statusRow()
+	if statusText == "" then
+		return ui.label({ text = "", fontSize = 10 })
+	end
+	return ui.label({
+		text = (busy and "⏳ " or "") .. statusText,
+		fontSize = 10,
+		color = color("on_surface", "#a6adc8"),
+	})
+end
+
+--- Шапка панели, ряд 2: переключатель вкладок.
+---@return table UiNode
+local function tabsRow()
+	local unreadLabel = ("Unread (%d)"):format(#state.unread)
+	local historyLabel = ("History (%d)"):format(#state.history)
+
+	return ui.row({
+		gap = 4,
+		align = "center",
+	}, {
 		ui.button({
 			text = unreadLabel,
 			variant = mode == "unread" and "primary" or "ghost",
@@ -143,49 +196,8 @@ local function headerRow()
 				render()
 			end,
 		}),
-		-- Обновить список.
-		ui.button({
-			glyph = "refresh",
-			variant = "ghost",
-			controlSize = "sm",
-			tooltip = "Refresh",
-			onClick = function()
-				fetchNow()
-			end,
-		}),
-		-- Отметить все прочитанными (только во вкладке Unread).
-		ui.button({
-			glyph = "checks",
-			variant = "ghost",
-			controlSize = "sm",
-			tooltip = "Mark all as read",
-			onClick = function()
-				markAllRead()
-			end,
-		}),
-		-- Открыть github.com/notifications в браузере.
-		ui.button({
-			glyph = "external-link",
-			variant = "ghost",
-			controlSize = "sm",
-			tooltip = "Open github.com/notifications",
-			onClick = function()
-				noctalia.runAsync("xdg-open 'https://github.com/notifications'")
-			end,
-		}),
-	})
-end
-
---- Строка статуса (индикатор busy / ошибки / результата).
----@return table UiNode
-local function statusRow()
-	if statusText == "" then
-		return ui.label({ text = "", fontSize = 11 })
-	end
-	return ui.label({
-		text = (busy and "⏳ " or "") .. statusText,
-		fontSize = 11,
-		color = color("on_surface", "#a6adc8"),
+		ui.spacer({ flexGrow = 1 }),
+		statusRow(),
 	})
 end
 
@@ -193,21 +205,21 @@ end
 function render()
 	local children = {}
 
-	table.insert(children, headerRow())
-	table.insert(children, statusRow())
+	table.insert(children, headerMainRow())
+	table.insert(children, tabsRow())
 
 	-- Токен не настроен: показываем инструкцию вместо списка.
 	if shared.getToken() == "" then
-		table.insert(children, ui.column({ padding = 16, gap = 10 }, {
-			ui.glyph({ name = "bell-off", size = 32, color = color("on_surface", "#a6adc8") }),
+		table.insert(children, ui.column({ padding = 16, gap = 8 }, {
+			ui.glyph({ name = "brand-github", size = 28, color = color("on_surface", "#a6adc8") }),
 			ui.label({
 				text = "No GitHub token configured",
-				fontSize = 14,
+				fontSize = 13,
 				color = color("on_surface", "#cdd6f4"),
 			}),
 			ui.label({
 				text = "Create a classic token with the 'notifications' scope\nat github.com/settings/tokens, then paste it in\nNoctalia Settings → Plugins → GitHub Notifications.",
-				fontSize = 12,
+				fontSize = 11,
 				color = color("on_surface", "#a6adc8"),
 			}),
 			ui.button({
@@ -219,7 +231,7 @@ function render()
 				end,
 			}),
 		}))
-		panel.render(ui.column({ fill = color("surface", "#11111b"), padding = 12, gap = 10 }, children))
+		panel.render(ui.column({ fill = color("surface", "#11111b"), padding = 10, gap = 8 }, children))
 		return
 	end
 
@@ -228,15 +240,15 @@ function render()
 	local listChildren = {}
 
 	if #items == 0 then
-		table.insert(listChildren, ui.column({ padding = 20, gap = 8 }, {
+		table.insert(listChildren, ui.column({ padding = 16, gap = 6 }, {
 			ui.glyph({
 				name = mode == "unread" and "check" or "history",
-				size = 28,
+				size = 24,
 				color = color("on_surface", "#a6adc8"),
 			}),
 			ui.label({
 				text = mode == "unread" and "No unread notifications" or "History is empty",
-				fontSize = 13,
+				fontSize = 12,
 				color = color("on_surface", "#a6adc8"),
 			}),
 		}))
@@ -248,13 +260,13 @@ function render()
 
 	table.insert(children, ui.scroll({
 		flexGrow = 1,
-		gap = 6,
+		gap = 4,
 	}, listChildren))
 
 	panel.render(ui.column({
 		fill = color("surface", "#11111b"),
-		padding = 12,
-		gap = 10,
+		padding = 10,
+		gap = 8,
 	}, children))
 end
 
