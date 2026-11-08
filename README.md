@@ -1,4 +1,4 @@
-при# 🎵 Sonara Player Widget
+🌺 Sonara Player Widget 🌺
 
 [🇷🇺 Русский](#-русский) · [🇬🇧 English](#-english)
 
