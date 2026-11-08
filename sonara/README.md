@@ -40,8 +40,8 @@
 ### 📦 Установка
 
 ```bash
-# Для локальной разработки: подключить источник плагинов
-noctalia msg plugins source add local path /путь/к/plugin
+# Подключить источник плагинов
+noctalia msg plugins source add sonara git https://github.com/le99nt/sonara_player_plugin
 
 # Включить плагин
 noctalia msg plugins enable obloble/sonara
@@ -116,7 +116,7 @@ Works with any MPRIS player through the built-in **`noctalia.mediaPlayer()`** AP
 ### 📦 Installation
 
 ```bash
-noctalia msg plugins source add local path /path/to/plugin
+noctalia msg plugins source add sonara git https://github.com/le99nt/sonara_player_plugin
 noctalia msg plugins enable obloble/sonara
 ```
 
