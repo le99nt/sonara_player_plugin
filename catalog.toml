@@ -31,6 +31,37 @@ deprecated = false
 plugin_api = 3
 tags = ["launcher", "web", "productivity", "utility"]
 
+# Внешний QML-плагин, скопированный «как есть» из репозитория
+# demencia89. Luau-точек входа не имеет (см. androidconnect/plugin.toml)
+# и хостом не исполняется — лежит про запас и не мешает.
+[[plugin]]
+id = "demencia89/androidconnect"
+name = "AndroidConnect"
+version = "1.6.1"
+updated_at = 1794057360
+added_at = 1794057360
+author = "demencia89"
+license = "GPL-2.0"
+icon = "smartphone"
+description = "Внешний QML-плагин (скопирован как есть): статус Android-устройства, быстрые действия, передача файлов и встроенное зеркало scrcpy в панели. Luau-точек входа не имеет и хостом не исполняется."
+deprecated = false
+plugin_api = 3
+tags = ["bar", "panel", "utility", "system", "android"]
+
+[[plugin]]
+id = "obloble/sonara"
+name = "Sonara Player Widget"
+version = "1.0.0"
+updated_at = 1794162000
+added_at = 1794154860
+author = "obloble"
+license = "MIT"
+icon = "music"
+description = "Виджет-плеер: обложка и название трека на панели; клик открывает панель с обложкой, полоской прогресса в 3 стилях (обычная/волнистая/уникальная-с-палочкой), живым визуализатором (волна/спектр/столбики) и кнопками в 3 стилях (Material 3 Expressive-фигуры, классические, круглые). Данные и управление — MPRIS через gdbus (fallback) или noctalia.mediaPlayer(); всё настраивается в настройках плагина."
+deprecated = false
+plugin_api = 43
+tags = ["bar", "panel", "media", "player", "mpris"]
+
 [[plugin]]
 id = "obloble/github-notifications"
 name = "GitHub Notifications"

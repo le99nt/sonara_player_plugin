@@ -1,0 +1,18 @@
+{
+  "settings.viz_style.label": "Visualizer style",
+  "settings.viz_style.description": "Style of the live visualizer in the player panel: 'wave' (smooth wave line), 'spectrum' (dual-line spectrum) or 'bars' (animated bars).",
+  "settings.progress_style.label": "Progress bar style",
+  "settings.progress_style.description": "Style of the track time bar: 'plain' (straight bar with a round knob), 'wavy' (animated wave of bars, filled up to the current position) or 'unique' (like plain but slightly thicker with a stick handle instead of a knob).",
+  "settings.button_style.label": "Button style",
+  "settings.button_style.description": "Transport control style drawn with ui surfaces: 'm3' (Material 3 Expressive shapes: circle, rounded-square, pills), 'classic' (squares with slightly rounded corners) or 'round' (perfect circles).",
+  "settings.glass_enabled.label": "Glass effect",
+  "settings.glass_enabled.description": "Frosted-glass background for the player panel: translucent surface with a soft blur.",
+  "settings.glass_blur.label": "Glass blur",
+  "settings.glass_blur.description": "Blur strength of the glass background (softness, 0–60). 0 disables the blur.",
+  "settings.glass_opacity.label": "Glass opacity",
+  "settings.glass_opacity.description": "How opaque the glass background is, in percent (5–95). Lower = more transparent.",
+  "settings.show_art_in_bar.label": "Show cover in the bar",
+  "settings.show_art_in_bar.description": "Show the album cover thumbnail (or a music-note fallback) next to the track title in the top bar widget.",
+  "settings.bar_title_width.label": "Bar title width",
+  "settings.bar_title_width.description": "Maximum number of characters of the track title shown in the bar widget before truncation (8–60)."
+}

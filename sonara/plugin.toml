@@ -1,0 +1,122 @@
+# ============================================================
+# Sonara Player Widget
+# Манифест плагина для Noctalia Shell (v5+)
+# ============================================================
+
+# Обязательные метаданные (верхний уровень манифеста)
+id = "obloble/sonara"
+name = "Sonara Player Widget"
+author = "obloble"
+version = "1.0.0"
+
+# plugin_api 43: замыкания в ui.* колбэках, noctalia.download.
+# Данные — noctalia.mediaPlayer() (новые хосты) либо MPRIS через gdbus.
+plugin_api = 43
+license = "MIT"
+icon = "music"
+
+description = """
+Media player widget for the bar: cover + track title by default; a click \
+opens a panel with the cover, title/artist, a live animated visualizer \
+(wave / spectrum / bars — inline or as a background), a progress bar in \
+three styles (plain, wavy, unique stick handle) and transport buttons in \
+three styles (Material 3 Expressive shapes, Classic squares, Round). \
+Reads MPRIS players directly (gdbus) or noctalia.mediaPlayer() on newer \
+hosts — nothing to install.
+"""
+tags = ["bar", "panel", "media", "player", "mpris"]
+
+# ------------------------------------------------------------
+# Настройки плагина (Settings → Plugins → Sonara).
+# ------------------------------------------------------------
+# Стиль визуализатора: wave | spectrum | bars
+[[setting]]
+key = "viz_style"
+type = "string"
+label_key = "settings.viz_style.label"
+description_key = "settings.viz_style.description"
+default = "wave"
+
+# Стиль полоски прогресса: plain | wavy | unique
+[[setting]]
+key = "progress_style"
+type = "string"
+label_key = "settings.progress_style.label"
+description_key = "settings.progress_style.description"
+default = "plain"
+
+# Стиль кнопок управления: m3 | classic | round
+[[setting]]
+key = "button_style"
+type = "string"
+label_key = "settings.button_style.label"
+description_key = "settings.button_style.description"
+default = "m3"
+
+# Эффект стекла: полупрозрачный размытый фон панели
+[[setting]]
+key = "glass_enabled"
+type = "bool"
+label_key = "settings.glass_enabled.label"
+description_key = "settings.glass_enabled.description"
+default = true
+
+# Сила размытия стекла (softness)
+[[setting]]
+key = "glass_blur"
+type = "int"
+label_key = "settings.glass_blur.label"
+description_key = "settings.glass_blur.description"
+default = 24
+min = 0
+max = 60
+
+# Плотность стеклянного фона (% непрозрачности)
+[[setting]]
+key = "glass_opacity"
+type = "int"
+label_key = "settings.glass_opacity.label"
+description_key = "settings.glass_opacity.description"
+default = 55
+min = 5
+max = 95
+
+# Показывать ли обложку трека на верхней панели
+[[setting]]
+key = "show_art_in_bar"
+type = "bool"
+label_key = "settings.show_art_in_bar.label"
+description_key = "settings.show_art_in_bar.description"
+default = true
+
+# Максимальная длина названия трека на панели (символов)
+[[setting]]
+key = "bar_title_width"
+type = "int"
+label_key = "settings.bar_title_width.label"
+description_key = "settings.bar_title_width.description"
+default = 26
+min = 8
+max = 60
+
+# ------------------------------------------------------------
+# Виджет на верхней панели: обложка (или иконка) + название трека.
+# Клик открывает панель плеера.
+# ------------------------------------------------------------
+[[widget]]
+id = "widget"
+entry = "widget.luau"
+
+# ------------------------------------------------------------
+# Панель плеера: обложка, название/артист/альбом, полоска прогресса,
+# живой визуализатор, кнопки в трёх стилях, громкость, shuffle/loop.
+# ------------------------------------------------------------
+[[panel]]
+id = "panel"
+entry = "panel.luau"
+width = 460
+height = 640
+placement = "attached"
+position = "auto"
+dismiss_on_outside_click = true
+open_near_click = true
