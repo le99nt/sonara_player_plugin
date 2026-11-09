@@ -5,7 +5,7 @@
 ![Noctalia](https://img.shields.io/badge/Noctalia%20Shell-v5+-6C5CE7)
 ![Luau](https://img.shields.io/badge/engine-Luau-0060AC)
 ![API](https://img.shields.io/badge/plugin__api-43-blue)
-![Version](https://img.shields.io/badge/version-1.0.0-success)
+![Version](https://img.shields.io/badge/version-1.1.0-success)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ---
@@ -33,8 +33,7 @@
   - **Material 3 Expressive** — крупные пилюли, play — большой круг;
   - **Классические** — квадратные с немного скруглёнными углами и рамкой;
   - **Круглые** — идеальные окружности.
-- ⏩ Слайдер перемотки (`ui.slider` + `onDragEnd`), перемотка ±10 с
-- 🔊 Громкость ±5%, 🔀 shuffle, 🔁 loop (None → Track → Playlist)
+- 🔀 shuffle, 🔁 loop (None → Track → Playlist)
 - 🎨 Цвета — токены палитры Noctalia (`primary`, `surface_container`, …), тема отслеживается живьём
 
 ### 📦 Установка
@@ -67,10 +66,11 @@ noctalia msg plugins enable obloble/sonara
 
 ### 🛠 Как это работает
 
-- **Данные** ([`shared.luau`](shared.luau)): два режима — native `noctalia.mediaPlayer()` (новые хосты) и D-Bus fallback через `gdbus`: `sonara-dbus.sh` находит активный MPRIS-игрок (предпочитает Playing), снимает метаданные/позицию/громкость/shuffle/loop, позиция экстраполируется между опросами (~1 раз/сек).
+- **Данные** ([`shared.luau`](shared.luau)): два режима — native `noctalia.mediaPlayer()` (новые хосты) и D-Bus fallback через `gdbus`: `sonara-dbus.sh` находит активный MPRIS-игрок (предпочитает Playing), снимает метаданные/позицию/громкость/shuffle/loop, позиция экстраполируется между опросами (~1 раз/сек). `seek-rel` принимает знаковые микросекунды в обоих режимах (контракт унифицирован).
 - **Виджет** ([`widget.luau`](widget.luau)): тик 1000 мс → `shared.refresh()` → `barWidget.setText/setImage/setGlyph`. Клик → `noctalia.togglePanel("obloble/sonara:panel")`.
-- **Панель** ([`panel.luau`](panel.luau)): `update()`-тик 120 мс (работает на всех версиях хоста) — анимация волны, экстраполяция позиции, dbus-опрос ~1 раз/сек. Неизменённое дерево диффится бесплатно.
-- **Полоска прогресса** (кликабельна — перемотка по сегментам ~4%, hover-подсветка): `plain` — прямая с круглой ручкой; `wavy` — анимированная волна из столбиков, заполненных до позиции; `unique` — как plain, но жирнее и с ручкой-«палочкой».
+- **Панель** ([`panel.luau`](panel.luau)): `update()`-тик 100 мс (работает на всех версиях хоста) — анимация волны, экстраполяция позиции, dbus-опрос каждый тик (guard не даёт накапливать процессы), в native-режиме состояние volume/shuffle/loop опрашивается ~1 раз в 2 с. Неизменённое дерево диффится бесплатно.
+- **Полоска прогресса**: `plain` — прямая с круглой ручкой; `wavy` — анимированная волна из столбиков, заполненных до позиции; `unique` — как plain, но жирнее и с ручкой-«палочкой». Подписи времени: прошедшее слева, остаток справа.
+- **Режимы**: shuffle и loop переключаются кнопками, состояние синхронизируется со снапшотом плеера. Обложка — в рамке-подложке с тонким контуром.
 - **Кнопки M3 Expressive**: play — крупный скруглённый квадрат (морф), prev/next — круги, мелкие — пилюли.
 - **Управление**: `sonara-act.sh` (play-pause/next/previous/Seek/SetPosition/Volume/Shuffle/LoopStatus) через тот же gdbus.
 - **Обложки** ([`shared.luau`](shared.luau)): `file://` пути отдаются сразу; http(s) скачиваются через `noctalia.download` в папку данных плагина и кэшируются по URL.
@@ -109,8 +109,7 @@ Works with any MPRIS player through the built-in **`noctalia.mediaPlayer()`** AP
 - 🌊 **Wave in 3 styles** (`ui.graph`, per-frame animation): **Wavy** (filled curve), **Plain** (thin line), **Unique** (same shape, bold stick line, no fill)
 - 📊 **Visualizer in 2 more styles**: **Spectrum** (dual-series `ui.graph`) and **Bars** (animated `ui.box` columns)
 - 🔘 **Buttons in 3 styles** (drawn as `ui.row` surfaces with `fill`/`radius`/`onClick`/`onHover`): **Material 3 Expressive** pills, **Classic** squares with slightly rounded corners, **Round** circles
-- ⏩ Seek slider (`ui.slider` + `onDragEnd`), seek ±10 s
-- 🔊 Volume ±5%, 🔀 shuffle, 🔁 loop (None → Track → Playlist)
+- 🔀 shuffle, 🔁 loop (None → Track → Playlist)
 - 🎨 Colors are palette tokens (`primary`, `surface_container`, …), tracked live
 
 ### 📦 Installation
@@ -138,8 +137,8 @@ Styles can also be switched live in the panel.
 
 ### 🛠 How it works
 
-- **Widget** ([`widget.luau`](widget.luau)): 1000 ms tick → `noctalia.mediaPlayer()` → `barWidget.setText/setImage/setGlyph`. Click → `noctalia.togglePanel("obloble/sonara:panel")`.
-- **Panel** ([`panel.luau`](panel.luau)): `onOpen` enables `panel.setNeedsFrameTick(true)`; `onFrameTick` polls `noctalia.mediaPlayer()` every frame (cheap, host-projected position) and advances the visualizer phase. Unchanged trees diff for free.
+- **Widget** ([`widget.luau`](widget.luau)): 1000 ms tick → `shared.refresh()` → `barWidget.setText/setImage/setGlyph`. Click → `noctalia.togglePanel("obloble/sonara:panel")`.
+- **Panel** ([`panel.luau`](panel.luau)): `onOpen` enables `panel.setNeedsFrameTick(true)`; `onFrameTick` advances the visualizer phase, `update()` ticks at 100 ms for data (dbus polling guarded, native state polled every ~2 s). Unchanged trees diff for free.
 - **Covers** ([`shared.luau`](shared.luau)): `file://` paths resolve immediately; http(s) art is downloaded via `noctalia.download` into the plugin data dir and cached per URL.
 - **Wave**: deterministic multi-sine values (`shared.waveValues`) fed to `ui.graph` (`values`/`values2`, `lineWidth`, `fillOpacity`); Bars — 24 `ui.box` columns with animated heights.
 - **Buttons**: three size/radius/fill profiles (`btnProfile`): m3 — pills with `radius = h/2`, classic — `radius 6–8` + `outline_variant` border, round — circles. Hover highlight via `onHover`.

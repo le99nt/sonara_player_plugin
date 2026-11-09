@@ -15,32 +15,67 @@ local shared = require("./shared.luau")
 local showArt = noctalia.getConfig("show_art_in_bar") ~= false
 local maxW = tonumber(noctalia.getConfig("bar_title_width")) or 26
 
+-- Последние установленные значения: barWidget не дёргается одинаковыми
+-- данными каждый тик (раньше setImage/setTooltip шли каждую секунду,
+-- что могло вызывать мерцание обложки и текста).
+local lastText, lastTooltip, lastImage, lastGlyph
+
+local function setText(t)
+	if t ~= lastText then
+		lastText = t
+		barWidget.setText(t)
+	end
+end
+
+local function setTooltip(t)
+	if t ~= lastTooltip then
+		lastTooltip = t
+		barWidget.setTooltip(t)
+	end
+end
+
+local function setImage(p)
+	if p ~= nil and p ~= lastImage then
+		lastImage = p
+		lastGlyph = nil
+		barWidget.setImage(p)
+	end
+end
+
+local function setGlyph(g)
+	if g ~= lastGlyph then
+		lastGlyph = g
+		lastImage = nil
+		barWidget.setGlyph(g)
+	end
+end
+
 local function renderBar(track)
 	if track == nil then
-		barWidget.setGlyph("music-off")
-		barWidget.setText("")
-		barWidget.setTooltip("Sonara: ничего не играет")
+		setGlyph("music-off")
+		setText("")
+		setTooltip("Sonara: ничего не играет")
 		return
 	end
 
-	barWidget.setText(shared.trunc(track.title, maxW))
+	setText(shared.trunc(track.title, maxW))
 
 	if showArt and track.artUrl ~= "" then
 		local path = shared.coverPath(track, function(p)
 			if p then
-				barWidget.setImage(p)
+				setImage(p)
 			end
 		end)
 		if path then
-			barWidget.setImage(path)
+			setImage(path)
 		else
-			barWidget.setGlyph("music")
+			setGlyph("music")
 		end
 	else
-		barWidget.setGlyph("music")
+		setGlyph("music")
 	end
 
-	barWidget.setTooltip(string.format(
+	setTooltip(string.format(
 		"Sonara: %s — %s%s",
 		track.title,
 		track.artist,

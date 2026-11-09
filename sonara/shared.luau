@@ -70,7 +70,13 @@ function M.fmtTime(sec)
 	if not sec or sec ~= sec or sec < 0 then
 		sec = 0
 	end
-	return string.format("%d:%02d", math.floor(sec / 60), math.floor(sec % 60))
+	sec = math.floor(sec + 0.5)
+	-- Треки длиннее часа: раньше «75:12» вместо «1:15:12».
+	local h = math.floor(sec / 3600)
+	if h > 0 then
+		return string.format("%d:%02d:%02d", h, math.floor((sec % 3600) / 60), sec % 60)
+	end
+	return string.format("%d:%02d", math.floor(sec / 60), sec % 60)
 end
 
 function M.urlDecode(s)
@@ -98,6 +104,8 @@ end
 
 M._mode = nil -- "native" | "dbus"
 M._cache = nil -- последний снапшот dbus-опроса
+M._scriptsReady = nil -- sh-скрипты уже записаны
+M._amp = nil -- сглаженная амплитуда визуализатора (play/pause)
 
 --- Определяет (и кэширует) режим.
 ---@return string "native" | "dbus"
@@ -165,6 +173,9 @@ function M.ensureScripts()
 	if not dir then
 		return false
 	end
+	if M._scriptsReady then
+		return true -- скрипты уже записаны: не переписываем файл каждый опрос
+	end
 
 	local query = [[#!/bin/sh
 names=$(gdbus call --session --dest org.freedesktop.DBus \
@@ -228,7 +239,55 @@ esac
 
 	local ok1 = noctalia.writeFile(dir .. "/sonara-dbus.sh", query)
 	local ok2 = noctalia.writeFile(dir .. "/sonara-act.sh", act)
-	return ok1 and ok2
+	M._scriptsReady = ok1 and ok2
+	return M._scriptsReady
+end
+
+--- Сканер GVariant-строки: s[i] — открывающая "''"; читает до неэкранированной
+--- "'", разэкранируя \' → ', \\ → \, \n → перенос, \t → таб.
+--- (Lua-паттерны не умеют чередование, поэтому экранирование обрабатываем
+--- вручную: регуляркой '(.-)' заголовки с апострофом обрезались на первом же
+--- экранированном ' — "Don\'t Stop" → "Don\").
+---@param s string
+---@param i number индекс открывающей кавычки
+---@return string value
+---@return number nextIndex
+local function scanQuoted(s, i)
+	local out = {}
+	i = i + 1
+	while i <= #s do
+		local c = string.sub(s, i, i)
+		if c == "\\" then
+			local n = string.sub(s, i + 1, i + 1)
+			if n == "n" then
+				out[#out + 1] = "\n"
+			elseif n == "t" then
+				out[#out + 1] = "\t"
+			elseif n ~= "" then
+				out[#out + 1] = n
+			end
+			i = i + 2
+		elseif c == "'" then
+			return table.concat(out), i + 1
+		else
+			out[#out + 1] = c
+			i = i + 1
+		end
+	end
+	return table.concat(out), i
+end
+
+--- Разбирает "'key': <'value'>" из вывода gdbus с учётом экранирования.
+---@param meta string
+---@param key string
+---@return string?
+local function gvString(meta, key)
+	local anchor = "'" .. key .. "': <'"
+	local at = string.find(meta, anchor, 1, true)
+	if not at then
+		return nil
+	end
+	return (scanQuoted(meta, at + #anchor - 1))
 end
 
 --- Парсит вывод sonara-dbus.sh. nil — плеера нет.
@@ -259,17 +318,34 @@ local function parseDbus(out)
 	track.status = out:match("ST %(<'(.-)'%>,%)") or "Stopped"
 	track.playing = track.status == "Playing"
 
-	-- Значения gdbus экранирует; наиболее частые случаи разбираем напрямую.
-	track.title = meta:match("'xesam:title': <'(.-)'>") or track.title
+	-- Значения gdbus экранирует (GVariant-текст): разбираем с учётом \' и \\.
+	track.title = gvString(meta, "xesam:title") or track.title
 	local artistRaw = meta:match("'xesam:artist': <(%b[])>") or ""
-	track.artist = artistRaw:match("'(.-)'") or track.artist
-	track.album = meta:match("'xesam:album': <'(.-)'>") or track.album
-	track.artUrl = meta:match("'mpris:artUrl': <'(.-)'>") or track.artUrl
+	local artists = {}
+	local ai = 1
+	while ai <= #artistRaw do
+		if string.sub(artistRaw, ai, ai) == "'" then
+			local v, ni = scanQuoted(artistRaw, ai)
+			artists[#artists + 1] = v
+			ai = ni
+		else
+			ai = ai + 1
+		end
+	end
+	if #artists > 0 then
+		-- Раньше брался только первый артист; теперь собираем всех.
+		track.artist = table.concat(artists, ", ")
+	end
+	track.album = gvString(meta, "xesam:album") or track.album
+	track.artUrl = gvString(meta, "mpris:artUrl") or track.artUrl
 	track.lenSec = (tonumber(meta:match("'mpris:length': <int64 (.-)>")) or 0) / 1e6
 	track.trackId = meta:match("'mpris:trackid': <objectpath '(.-)'>") or track.trackId
 
 	track.posUs = tonumber(out:match("POS\n%(<int64 (.-)>,%)")) or 0
-	local vol = tonumber(out:match("VOL\n%(<([^>]*)>,%)"))
+	-- gdbus печатает громкость как "<double 0.85>": берём само число
+	-- (раньше tonumber("double 0.85") всегда давал nil и громкость терялась).
+	local vol = tonumber(out:match("VOL\n%(<double%s+([%-%d%.]+)>,%)"))
+		or tonumber(out:match("VOL\n%(<([%-%d%.]+)>,%)"))
 	if vol then
 		track.volume = vol
 	end
@@ -374,13 +450,18 @@ end
 function M.act(action, a, b, cb)
 	if M.mode() == "native" then
 		-- playerctl: только константные команды.
+		-- Контракт seek-rel унифицирован с dbus-режимом: знаковое смещение
+		-- в микросекундах (раньше native ожидал секунды без знака —
+		-- семантика режимов расходилась). seek-abs принимает микросекунды.
+		local n = tonumber(a) or 0
 		local map = {
 			["play-pause"] = "play-pause",
 			next = "next",
 			previous = "previous",
-			["seek-rel"] = "position " .. tostring(a) .. "-",
-			["seek-fwd"] = "position " .. tostring(a) .. "+",
-			["seek-abs"] = "position " .. tostring(b),
+			["seek-rel"] = (n < 0)
+				and ("position " .. tostring(-n / 1e6) .. "-")
+				or ("position " .. tostring(n / 1e6) .. "+"),
+			["seek-abs"] = "position " .. tostring((tonumber(b) or 0) / 1e6),
 			["volume"] = "volume " .. tostring(a),
 			["shuffle"] = "shuffle " .. (a and "on" or "off"),
 			["loop"] = "loop " .. string.lower(tostring(a)),
@@ -417,24 +498,35 @@ end
 ---@param cb function
 ---@return boolean
 function M.queryState(cb)
+	-- Одноразовый вызов cb: раньше при неудачном запуске одного из запросов
+	-- pending не доходил до 0 и колбэк зависал навсегда; возможен был и
+	-- двойной вызов (started == 0 + дошедшие ответы).
+	local fired = false
+	local function finish(fields)
+		if not fired then
+			fired = true
+			cb(fields)
+		end
+	end
 	if M.mode() == "native" then
 		local pending = 3
 		local fields = { volume = 1.0, shuffle = "Off", loop = "None" }
 		local function done()
 			pending = pending - 1
-			if pending == 0 then
-				cb(fields)
+			if pending <= 0 then
+				finish(fields)
 			end
 		end
-		local started = 0
 		local q = function(args, fn)
-			if noctalia.runAsync("playerctl " .. args, function(r)
-				if r.exitCode == 0 then
+			-- r.stdout может быть nil (краш gsub) — защищаемся.
+			local started = noctalia.runAsync("playerctl " .. args, function(r)
+				if r.exitCode == 0 and type(r.stdout) == "string" then
 					fn((r.stdout:gsub("%s+", "")))
 				end
 				done()
-			end) then
-				started = started + 1
+			end)
+			if not started then
+				done() -- запрос не запустился: не ждём его вечно
 			end
 		end
 		q("volume", function(v)
@@ -446,15 +538,11 @@ function M.queryState(cb)
 		q("loop", function(v)
 			fields.loop = v
 		end)
-		if started == 0 then
-			cb(fields)
-			return false
-		end
-		return true
+		return fired
 	end
 
 	-- dbus-режим: состояние уже в кэше.
-	cb({
+	finish({
 		volume = (M._cache and M._cache.volume) or 1.0,
 		shuffle = (M._cache and M._cache.shuffle) or "Off",
 		loop = (M._cache and M._cache.loop) or "None",
@@ -467,6 +555,8 @@ end
 -- ---------------------------------------------------------------------------
 
 local coverCache = {} -- artUrl -> локальный путь
+local coverPending = {} -- artUrl -> { function } — колбэки ожидающих загрузку
+local coverFailedAt = {} -- artUrl -> os.time() последней неудачи (backoff)
 
 ---@param track table
 ---@param cb function?
@@ -485,23 +575,47 @@ function M.coverPath(track, cb)
 	if coverCache[url] then
 		return coverCache[url]
 	end
+	if coverPending[url] then
+		-- Загрузка уже идёт: ставим колбэк в очередь (с потолком, чтобы
+		-- покадровые вызовы не копили сотни функций).
+		if cb and #coverPending[url] < 8 then
+			coverPending[url][#coverPending[url] + 1] = cb
+		end
+		return nil
+	end
+	if coverFailedAt[url] and os.time() - coverFailedAt[url] < 30 then
+		return nil -- недавняя неудача: не спамим загрузками каждый кадр
+	end
 	local dir = noctalia.pluginDataDir()
 	if not dir then
 		return nil
 	end
 	local ext = string.find(url, "%.png", 1, false) and ".png" or ".jpg"
 	local dest = dir .. "/cover-" .. tostring(M.hash(url)) .. ext
-	coverCache[url] = dest
+	coverPending[url] = cb and { cb } or {}
 	local started = noctalia.download(url, dest, function(ok)
-		if not ok then
-			coverCache[url] = nil
+		local waiters = coverPending[url]
+		coverPending[url] = nil
+		if ok then
+			coverCache[url] = dest
+		else
+			coverFailedAt[url] = os.time()
 		end
-		if cb then
-			cb(ok and dest or nil)
+		if waiters then
+			for _, w in ipairs(waiters) do
+				pcall(w, ok and dest or nil)
+			end
 		end
 	end)
 	if not started then
-		coverCache[url] = nil
+		local waiters = coverPending[url]
+		coverPending[url] = nil
+		coverFailedAt[url] = os.time()
+		if waiters then
+			for _, w in ipairs(waiters) do
+				pcall(w, nil)
+			end
+		end
 	end
 	return nil
 end
@@ -512,7 +626,6 @@ end
 
 local TWO_PI = math.pi * 2
 
----@param style string
 -- ---------------------------------------------------------------------------
 -- Настоящий спектр: cava (PipeWire capture) в режиме raw/ascii.
 -- cava запускается noctalia.runStream (долгоживущий процесс), каждая строка
@@ -590,6 +703,7 @@ function M.stopCava()
 	end
 	M.cavaActive = false
 	M.cavaLevels = nil
+	M.cavaSmooth = nil
 	noctalia.runAsync("pkill -f " .. M.shellQuote("sonara-cava.conf") .. " 2>/dev/null")
 end
 
@@ -602,6 +716,15 @@ local function interp(levels, n)
 	if m == 0 then
 		return {}
 	end
+	if m == 1 or n <= 1 then
+		-- Раньше при n == 1 было деление на ноль ((n-1) = 0) → NaN.
+		local v = levels[1]
+		local out = {}
+		for i = 1, (n <= 1) and 1 or n do
+			out[i] = v
+		end
+		return out
+	end
 	local out = {}
 	for i = 1, n do
 		local x = (i - 1) / (n - 1) * (m - 1) + 1
@@ -613,6 +736,33 @@ local function interp(levels, n)
 	return out
 end
 
+M._ampLast = nil -- os.clock последнего вызова smoothAmp
+
+--- Плавно подводит амплитуду визуализатора к целевой (1.0 — играет,
+--- 0.05 — на паузе). Раньше амплитуда переключалась мгновенно — волна
+--- «хлопнула» при нажатии паузы/плей без плавности.
+---@param playing boolean
+---@return number
+function M.smoothAmp(playing)
+	local target = playing and 1.0 or 0.05
+	local now = os.clock()
+	local dt = M._ampLast and (now - M._ampLast) or 0.016
+	if dt <= 0 then
+		dt = 0.016 -- os.clock может отсутствовать/не тикать в песочнице хоста
+	end
+	M._ampLast = now
+	if M._amp == nil then
+		M._amp = target
+	end
+	-- Экспоненциальное сглаживание по времени: скорость перехода не зависит
+	-- от того, сколько генераторов вызвали smoothAmp за один кадр (раньше
+	-- волна + столбики ускоряли затухание в 2–3 раза).
+	local k = 1 - math.exp(-dt * 7)
+	M._amp = M._amp + (target - M._amp) * k
+	return M._amp
+end
+
+---@param style string
 ---@param phase number
 ---@param playing boolean
 ---@param n number?
@@ -667,7 +817,7 @@ function M.waveValues(style, phase, playing, n)
 	end
 
 	-- Синтетический fallback (cava не установлен).
-	local amp = playing and 1.0 or 0.05
+	local amp = M.smoothAmp(playing)
 	local values, values2 = {}, nil
 
 	if style == "spectrum" then
@@ -683,7 +833,8 @@ function M.waveValues(style, phase, playing, n)
 	end
 
 	for i = 1, n do
-		local t = (i - 1) / (n - 1) * TWO_PI
+		-- math.max(1, n - 1): при n == 1 было деление на ноль → NaN.
+		local t = (i - 1) / math.max(1, n - 1) * TWO_PI
 		local v = 0.5
 			+ 0.32 * math.sin(t * 2 + phase * 2.4) * (0.6 + 0.4 * math.sin(phase * 1.1))
 			+ 0.18 * math.sin(t * 3.7 - phase * 3.3)
@@ -709,7 +860,7 @@ function M.barHeights(phase, playing, n)
 	if M.cavaLevels and #M.cavaLevels > 0 then
 		return interp(M.cavaLevels, n)
 	end
-	local amp = playing and 1.0 or 0.05
+	local amp = M.smoothAmp(playing)
 	local out = {}
 	for i = 1, n do
 		local base = math.abs(math.sin(i * 1.7 + phase * 2.1))
