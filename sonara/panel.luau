@@ -134,7 +134,9 @@ end
 --- НЕ пересоздаётся (иначе хост проигрывает анимацию появления — визуальный
 --- «скачок/приближение» при нажатии паузы и обратно). Глиф обновляется
 --- штатно, проп-ом, на существующей ноде.
-local function ctrlButton(key, glyphName, kind, tooltip, handler)
+-- active: кнопка-переключатель во «включённом» состоянии (shuffle On,
+-- loop != None) — подсвечивается заметнее, чем выключенная.
+local function ctrlButton(key, glyphName, kind, tooltip, handler, active)
 	local p = btnProfile(kind)
 	local nodeKey = key .. "-btn"
 	-- Сравниваем с тем же ключом, что назначен ноде: раньше сравнивали с
@@ -142,6 +144,9 @@ local function ctrlButton(key, glyphName, kind, tooltip, handler)
 	-- ховера никогда не срабатывала.
 	local hovered = hoveredKey == nodeKey
 	local fill = hovered and p.hover or p.fill
+	if active and not hovered then
+		fill = (btnStyle == "classic") and "primary/0.15" or "primary/0.30"
+	end
 	local radius = p.r
 	if btnStyle == "m3" and hovered and kind == "play" then
 		-- Морф M3 Expressive: скруглённый квадрат схлопывается в круг.
@@ -179,11 +184,13 @@ local function transportRow()
 	})
 end
 
--- Ряд режимов: shuffle/loop.
+-- Ряд режимов: shuffle/loop (включённые подсвечены).
 local function togglesRow()
+	local shufActive = state.shuffle == "On"
+	local loopActive = (state.loop ~= nil and state.loop ~= "None") or false
 	return ui.row({ gap = 6, align = "center", justify = "center" }, {
-		ctrlButton("shuf", "shuffle", "small", "Shuffle: " .. tostring(state.shuffle), "onShuffle"),
-		ctrlButton("loop", "repeat", "small", "Loop: " .. tostring(state.loop), "onLoopNext"),
+		ctrlButton("shuf", "shuffle", "small", "Shuffle: " .. tostring(state.shuffle), "onShuffle", shufActive),
+		ctrlButton("loop", "repeat", "small", "Loop: " .. tostring(state.loop), "onLoopNext", loopActive),
 	})
 end
 
@@ -263,23 +270,21 @@ local function progressBlock()
 		bar = straightProgress(frac)
 	end
 
-	-- Подписи времени: прошедшее слева, остаток справа (раньше было
-	-- «0:00  /  3:45» одной строкой по центру). space-between вместо
-	-- пустого row-разделителя (пустые ноды рендерились криво).
-	local elapsed = shared.fmtTime(pos)
-	local remaining = "-" .. shared.fmtTime(math.max(0, len - pos))
+	-- Подписи времени: слева — сколько идёт трек, справа — полная
+	-- длительность. space-between вместо пустого row-разделителя
+	-- (пустые ноды рендерились криво).
 	return ui.column({ gap = 2, align = "center" }, {
 		bar,
 		ui.row({ gap = 0, width = PROG_W, height = 12, justify = "space-between" }, {
 			ui.label({
 				key = "t-elapsed",
-				text = elapsed,
+				text = shared.fmtTime(pos),
 				fontSize = 10,
 				color = "on_surface_variant",
 			}),
 			ui.label({
-				key = "t-remaining",
-				text = remaining,
+				key = "t-total",
+				text = shared.fmtTime(len),
 				fontSize = 10,
 				color = "on_surface_variant/0.85",
 			}),
