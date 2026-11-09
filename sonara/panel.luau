@@ -125,7 +125,7 @@ local function btnProfile(kind)
 	elseif kind == "side" then
 		return { w = 48, h = 48, r = 24, fill = "primary/0.15", hover = "primary/0.3", glyph = "primary", gs = 21 }
 	end
-	return { w = 36, h = 26, r = 13, fill = "primary/0.10", hover = "primary/0.25", glyph = "primary", gs = 15 }
+	return { w = 40, h = 28, r = 14, fill = "primary/0.10", hover = "primary/0.25", glyph = "primary", gs = 16 }
 end
 
 --- Поверхность-кнопка: ui.row с fill/radius/onClick/onHover и глифом
@@ -140,12 +140,18 @@ local function ctrlButton(key, glyphName, kind, tooltip, handler)
 	-- Сравниваем с тем же ключом, что назначен ноде: раньше сравнивали с
 	-- коротким именем ("play"), а хост передаёт ключ ноды — подсветка
 	-- ховера никогда не срабатывала.
-	local fill = (hoveredKey == nodeKey) and p.hover or p.fill
+	local hovered = hoveredKey == nodeKey
+	local fill = hovered and p.hover or p.fill
+	local radius = p.r
+	if btnStyle == "m3" and hovered and kind == "play" then
+		-- Морф M3 Expressive: скруглённый квадрат схлопывается в круг.
+		radius = p.h / 2
+	end
 	local props = {
 		key = nodeKey,
 		width = p.w,
 		height = p.h,
-		radius = p.r,
+		radius = radius,
 		fill = fill,
 		align = "center",
 		justify = "center",
@@ -154,7 +160,8 @@ local function ctrlButton(key, glyphName, kind, tooltip, handler)
 		tooltip = tooltip,
 	}
 	if p.border then
-		props.border = p.border
+		-- classic: при ховере рамка подсвечивается цветом primary.
+		props.border = (btnStyle == "classic" and hovered) and "primary/0.45" or p.border
 		props.borderWidth = p.bw or 1
 	end
 	return ui.row(props, {
@@ -263,7 +270,7 @@ local function progressBlock()
 	local remaining = "-" .. shared.fmtTime(math.max(0, len - pos))
 	return ui.column({ gap = 2, align = "center" }, {
 		bar,
-		ui.row({ gap = 0, width = PROG_W, height = 14, justify = "space-between" }, {
+		ui.row({ gap = 0, width = PROG_W, height = 12, justify = "space-between" }, {
 			ui.label({
 				key = "t-elapsed",
 				text = elapsed,
@@ -294,7 +301,7 @@ local function vizGraph()
 		lineWidth = lineWidth,
 		fillOpacity = fillOpacity,
 		width = 396,
-		height = 88,
+		height = 78,
 	}
 	if values2 then
 		props.values2 = values2
@@ -305,7 +312,7 @@ local function vizGraph()
 end
 
 local function vizCard()
-	local h = 88
+	local h = 78
 	local inner
 	if vizStyle == "bars" then
 		local heights = shared.barHeights(phase, track ~= nil and track.playing or false, BARS_N)
@@ -442,14 +449,24 @@ end
 function render()
 	local children = {}
 
-	-- Шапка: логотип, имя плагина, имя плеера.
+	-- Шапка: логотип, имя плагина, имя плеера (чипом на подложке).
+	local identity = (track ~= nil and track.identity ~= "") and track.identity or "—"
 	children[#children + 1] = ui.row({ gap = 8, align = "center" }, {
 		ui.glyph({ name = "playlist", size = 16, color = "primary" }),
 		ui.label({ text = "Sonara", fontSize = 14, fontWeight = "semibold", color = "on_surface", flexGrow = 1 }),
-		ui.label({
-			text = (track ~= nil and track.identity ~= "") and track.identity or "—",
-			fontSize = 10,
-			color = "on_surface_variant",
+		ui.row({
+			fill = "surface_container/0.6",
+			radius = 9,
+			padding = 2,
+			paddingH = 8,
+			align = "center",
+		}, {
+			ui.label({
+				key = "identity-chip",
+				text = identity,
+				fontSize = 10,
+				color = "on_surface_variant",
+			}),
 		}),
 	})
 
