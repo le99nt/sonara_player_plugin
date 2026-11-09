@@ -195,7 +195,9 @@ local function straightProgress(frac)
 	local fillW = math.floor(frac * (PROG_W - knobW) + 0.5)
 	local restW = math.max(0, PROG_W - fillW - knobW)
 
-	return ui.row({ gap = 0, align = "center", width = PROG_W, height = rowH, flexGrow = 1 }, {
+	-- Без flexGrow: у строки уже фиксированная высота, а flexGrow в колонке
+	-- растягивал её и выталкивал нижние блоки панели за край (обрезка снизу).
+	return ui.row({ gap = 0, align = "center", width = PROG_W, height = rowH }, {
 		ui.box({
 			key = "pb-fill",
 			width = fillW,
@@ -236,7 +238,7 @@ local function wavyProgress(frac)
 			fill = filled and "primary" or "surface_container_high",
 		})
 	end
-	return ui.row({ gap = gap, align = "end", justify = "center", width = PROG_W, height = 20, flexGrow = 1 }, bars)
+	return ui.row({ gap = gap, align = "end", justify = "center", width = PROG_W, height = 20 }, bars)
 end
 
 local function progressBlock()
@@ -255,30 +257,24 @@ local function progressBlock()
 	end
 
 	-- Подписи времени: прошедшее слева, остаток справа (раньше было
-	-- «0:00  /  3:45» одной строкой по центру). Фиксированная ширина меток
-	-- не даёт цифрам «плясать» при тиканье секунд.
+	-- «0:00  /  3:45» одной строкой по центру). space-between вместо
+	-- пустого row-разделителя (пустые ноды рендерились криво).
 	local elapsed = shared.fmtTime(pos)
 	local remaining = "-" .. shared.fmtTime(math.max(0, len - pos))
-	local sideW = math.max(34, #elapsed * 5)
 	return ui.column({ gap = 2, align = "center" }, {
 		bar,
-		ui.row({ gap = 0, width = PROG_W, height = 14, flexGrow = 1 }, {
+		ui.row({ gap = 0, width = PROG_W, height = 14, justify = "space-between" }, {
 			ui.label({
 				key = "t-elapsed",
 				text = elapsed,
 				fontSize = 10,
 				color = "on_surface_variant",
-				width = sideW,
-				textAlign = "start",
 			}),
-			ui.row({ flexGrow = 1 }, {}),
 			ui.label({
 				key = "t-remaining",
 				text = remaining,
 				fontSize = 10,
 				color = "on_surface_variant/0.85",
-				width = sideW,
-				textAlign = "end",
 			}),
 		}),
 	})
@@ -299,7 +295,6 @@ local function vizGraph()
 		fillOpacity = fillOpacity,
 		width = 396,
 		height = 88,
-		flexGrow = 1,
 	}
 	if values2 then
 		props.values2 = values2
@@ -325,7 +320,7 @@ local function vizCard()
 				opacity = 0.55 + 0.45 * v,
 			})
 		end
-		inner = ui.row({ gap = 5, align = "end", justify = "center", width = 396, height = h, flexGrow = 1 }, bars)
+		inner = ui.row({ gap = 5, align = "end", justify = "center", width = 396, height = h }, bars)
 	else
 		inner = vizGraph()
 	end
