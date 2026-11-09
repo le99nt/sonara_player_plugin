@@ -18,8 +18,9 @@
 --                 квадрат (морф) + пилюли;
 --       classic — квадраты с немного скруглёнными углами и рамкой;
 --       round   — идеальные круги;
---   * обновление — update() тик 120 мс (noctalia.setUpdateInterval):
---     анимация волны, экстраполяция позиции, dbus-опрос ~1 раз/сек.
+--   * обновление — update() тик 100 мс (noctalia.setUpdateInterval):
+--     анимация волны, экстраполяция позиции, dbus-опрос каждый тик
+--     (самоподстраивается через guard _dbusBusy).
 --
 -- Все стили — настройки плагина (Settings → Plugins → Sonara), читаются
 -- в onOpen.
@@ -31,7 +32,7 @@ local shared = require("./shared.luau")
 -- Состояние панели
 -- ---------------------------------------------------------------------------
 
-local PANEL_TICK_MS = 120 -- тик анимации
+local PANEL_TICK_MS = 100 -- тик анимации и dbus-опроса
 local VIZ_W = 48 -- точек волны
 local BARS_N = 24 -- столбиков визуализатора
 local PROG_N = 40 -- столбиков волнистой полоски
@@ -90,6 +91,7 @@ function onLoopNext()
 	refreshState()
 end
 
+
 -- ---------------------------------------------------------------------------
 -- Кнопки: рисуем ui.row-поверхностями в выбранном стиле
 -- ---------------------------------------------------------------------------
@@ -128,11 +130,19 @@ end
 
 --- Поверхность-кнопка: ui.row с fill/radius/onClick/onHover и глифом
 --- по центру (row центрирует детей по поперечной оси, justify — по главной).
+--- Ключ стабильный и не зависит от глифа: при переключении play/pause нода
+--- НЕ пересоздаётся (иначе хост проигрывает анимацию появления — визуальный
+--- «скачок/приближение» при нажатии паузы и обратно). Глиф обновляется
+--- штатно, проп-ом, на существующей ноде.
 local function ctrlButton(key, glyphName, kind, tooltip, handler)
 	local p = btnProfile(kind)
-	local fill = (hoveredKey == key) and p.hover or p.fill
+	local nodeKey = key .. "-btn"
+	-- Сравниваем с тем же ключом, что назначен ноде: раньше сравнивали с
+	-- коротким именем ("play"), а хост передаёт ключ ноды — подсветка
+	-- ховера никогда не срабатывала.
+	local fill = (hoveredKey == nodeKey) and p.hover or p.fill
 	local props = {
-		key = key .. "-" .. glyphName, -- ключ зависит от глифа: play/pause обновляется
+		key = nodeKey,
 		width = p.w,
 		height = p.h,
 		radius = p.r,
@@ -214,7 +224,7 @@ end
 local function wavyProgress(frac)
 	local gap = 2
 	local bw = math.floor((PROG_W - (PROG_N - 1) * gap) / PROG_N)
-	local hs = shared.barHeights(phase, true, PROG_N)
+	local hs = shared.barHeights(phase, track ~= nil and track.playing or false, PROG_N)
 	local bars = {}
 	for i = 1, PROG_N do
 		local filled = (i - 0.5) / PROG_N <= frac
@@ -244,12 +254,32 @@ local function progressBlock()
 		bar = straightProgress(frac)
 	end
 
+	-- Подписи времени: прошедшее слева, остаток справа (раньше было
+	-- «0:00  /  3:45» одной строкой по центру). Фиксированная ширина меток
+	-- не даёт цифрам «плясать» при тиканье секунд.
+	local elapsed = shared.fmtTime(pos)
+	local remaining = "-" .. shared.fmtTime(math.max(0, len - pos))
+	local sideW = math.max(34, #elapsed * 5)
 	return ui.column({ gap = 2, align = "center" }, {
 		bar,
-		ui.label({
-			text = shared.fmtTime(pos) .. "  /  " .. shared.fmtTime(len),
-			fontSize = 10,
-			color = "on_surface_variant",
+		ui.row({ gap = 0, width = PROG_W, height = 14, flexGrow = 1 }, {
+			ui.label({
+				key = "t-elapsed",
+				text = elapsed,
+				fontSize = 10,
+				color = "on_surface_variant",
+				width = sideW,
+				textAlign = "start",
+			}),
+			ui.row({ flexGrow = 1 }, {}),
+			ui.label({
+				key = "t-remaining",
+				text = remaining,
+				fontSize = 10,
+				color = "on_surface_variant/0.85",
+				width = sideW,
+				textAlign = "end",
+			}),
 		}),
 	})
 end
@@ -279,22 +309,6 @@ local function vizGraph()
 	return ui.graph(props)
 end
 
-local function vizBars()
-	local heights = shared.barHeights(phase, track ~= nil and track.playing or false, BARS_N)
-	local bars = {}
-	for i, v in ipairs(heights) do
-		table.insert(bars, ui.box({
-			key = "bar-" .. tostring(i),
-			width = 9,
-			height = math.max(4, math.floor(v * 88 + 0.5)),
-			fill = "primary",
-			radius = 4,
-			opacity = 0.55 + 0.45 * v,
-		}))
-	end
-	return ui.row({ gap = 5, align = "end", justify = "center", width = 396, height = 88, flexGrow = 1 }, bars)
-end
-
 local function vizCard()
 	local h = 88
 	local inner
@@ -317,7 +331,9 @@ local function vizCard()
 	end
 	return ui.row({
 		fill = "surface_container/0.5",
-		radius = 14,
+		radius = 16,
+		border = "primary/0.12",
+		borderWidth = 1,
 		padding = 10,
 		paddingH = 12,
 		align = "center",
@@ -334,7 +350,7 @@ local function rootProps()
 		fill = "surface",
 		radius = 18,
 		padding = 12,
-		gap = 10,
+		gap = 12,
 	}
 	if glassEnabled then
 		local alpha = math.max(5, math.min(95, glassOpacity)) / 100
@@ -350,21 +366,37 @@ end
 
 local function coverNode()
 	local size = 208
+	-- Рамка-подложка вокруг обложки: аккуратный «паспарту» с тонким
+	-- контуром цвета primary. key на рамке — нода стабильна между тиками,
+	-- путь изображения обновляется проп-ом без пересоздания.
 	if coverPath ~= nil then
-		return ui.image({
-			key = "cover-" .. coverKey,
-			path = coverPath,
-			width = size,
-			height = size,
-			radius = 16,
-			fit = "cover",
+		return ui.row({
+			key = "cover-frame-" .. coverKey,
+			width = size + 12,
+			height = size + 12,
+			radius = 20,
+			fill = "surface_container/0.35",
+			border = "primary/0.25",
+			borderWidth = 1,
+			align = "center",
+			justify = "center",
+		}, {
+			ui.image({
+				path = coverPath,
+				width = size,
+				height = size,
+				radius = 14,
+				fit = "cover",
+			}),
 		})
 	end
 	return ui.row({
-		width = size,
-		height = size,
-		radius = 16,
-		fill = "surface_container",
+		width = size + 12,
+		height = size + 12,
+		radius = 20,
+		fill = "surface_container/0.35",
+		border = "primary/0.25",
+		borderWidth = 1,
 		align = "center",
 		justify = "center",
 	}, {
@@ -374,13 +406,13 @@ end
 
 local function trackLabels()
 	local title = (track and track.title) or ""
-	if track and not track.playing then
-		title = title .. "  ⏸"
-	end
+	-- Статус паузы показывают кнопка play/pause и тултип. Раньше к заголовку
+	-- добавлялся "  ⏸": текст (а с ним и layout панели) менялся при каждом
+	-- нажатии паузы — лишний визуальный скачок.
 	local rows = {
 		ui.label({
 			text = title,
-			fontSize = 17,
+			fontSize = 18,
 			fontWeight = "semibold",
 			color = "on_surface",
 			maxWidth = 420,
@@ -389,7 +421,8 @@ local function trackLabels()
 		ui.label({
 			text = (track and track.artist) or "",
 			fontSize = 13,
-			color = "primary",
+			fontWeight = "medium",
+			color = "primary/0.9",
 			maxWidth = 420,
 			textAlign = "center",
 		}),
@@ -398,12 +431,12 @@ local function trackLabels()
 		rows[#rows + 1] = ui.label({
 			text = track.album,
 			fontSize = 11,
-			color = "on_surface_variant",
+			color = "on_surface_variant/0.85",
 			maxWidth = 420,
 			textAlign = "center",
 		})
 	end
-	return ui.column({ gap = 3, align = "center" }, rows)
+	return ui.column({ gap = 4, align = "center" }, rows)
 end
 
 -- ---------------------------------------------------------------------------
@@ -446,15 +479,17 @@ function render()
 	end
 
 	-- Разрешаем обложку (может докачаться асинхронно и перерисовать).
-	if track.artUrl ~= "" and track.artUrl ~= coverKey then
+	if track.artUrl == "" and coverKey ~= "" then
+		-- У нового трека обложки нет — сбрасываем старую (раньше висела).
+		coverKey = ""
+		coverPath = nil
+	elseif track.artUrl ~= "" and track.artUrl ~= coverKey then
 		coverKey = track.artUrl
 		coverPath = nil
-		coverPath = shared.coverPath(track, function(p)
-			if p then
-				coverPath = p
-				render()
-			end
-		end)
+		-- Без колбэка: панель перерисовывается каждый кадр/тик, и как только
+		-- загрузка завершится (путь попадёт в кэш shared), он придёт отсюда
+		-- синхронно. Раньше каждый кадр добавлял новый колбэк в очередь.
+		coverPath = shared.coverPath(track)
 	end
 
 	local content = {
@@ -479,25 +514,51 @@ end
 -- (update() — надёжно на всех версиях хоста, включая 5.4.1)
 -- ---------------------------------------------------------------------------
 
--- Фаза анимации: двигает onFrameTick (плавно). Если кадровые тики на хосте
--- не идут, update() подкрашивает фазу маленьким шагом — без рывков.
--- Фаза анимации: плавно двигает onFrameTick. Если кадровые тики на хосте
--- не приходят, update() подкрашивает фазу маленьким шагом — без рывков.
 local frameSeq = 0
 local lastSeenFrame = 0
+local tickCount = 0
 
 function update()
 	if frameSeq == lastSeenFrame then
-		phase = phase + 0.12 -- кадров не было: маленький шаг
+		-- Кадров не было: маленький шаг фазы, но только когда что-то
+		-- играет (на паузе волна замирает — как и положено).
+		if track == nil or track.playing then
+			phase = phase + 0.12
+		end
 	end
 	lastSeenFrame = frameSeq
+	tickCount = tickCount + 1
 
-	-- dbus-опрос ~1 раз/сек.
+	-- dbus-опрос каждый тик (100 мс → ~10 раз/сек): позиция и статус
+	-- обновляются мгновенно. Guard M._dbusBusy в shared не даёт накапливать
+	-- процессы: пока предыдущий gdbus-скрипт не завершился, новый не
+	-- запускается, так что реальная частота самоподстраивается.
 	if shared.mode() == "dbus" then
 		shared.refresh(nil)
 	end
 
 	track = shared.player()
+
+	-- dbus-режим: volume/shuffle/loop уже в снапшоте — синхронизируем
+	-- состояние кнопок (раньше тултипы показывали устаревшие значения).
+	if shared.mode() == "dbus" and track ~= nil then
+		if track.shuffle ~= nil then
+			state.shuffle = track.shuffle
+		end
+		if track.loop ~= nil then
+			state.loop = track.loop
+		end
+		if track.volume ~= nil then
+			state.volume = track.volume
+		end
+	end
+
+	-- native-режим: периодический опрос состояния (~1 раз в 2 с) — громкость,
+	-- shuffle и loop могут меняться снаружи панели (клавиатура, плеер).
+	if shared.mode() == "native" and tickCount % 20 == 0 then
+		refreshState()
+	end
+
 	render()
 end
 
@@ -507,9 +568,23 @@ end
 
 function onOpen(context)
 	-- Все стили — настройки плагина (Settings → Plugins → Sonara).
-	vizStyle = tostring(noctalia.getConfig("viz_style") or "wave")
-	progressStyle = tostring(noctalia.getConfig("progress_style") or "plain")
-	btnStyle = tostring(noctalia.getConfig("button_style") or "m3")
+	-- Значения валидируются по белым спискам: мусор в конфиге больше не
+	-- проваливается в необработанную ветку рендера.
+	local function pick(v, allowed, def)
+		for _, s in ipairs(allowed) do
+			if v == s then
+				return s
+			end
+		end
+		return def
+	end
+	vizStyle = pick(tostring(noctalia.getConfig("viz_style") or "wave"), { "wave", "spectrum", "bars" }, "wave")
+	progressStyle = pick(
+		tostring(noctalia.getConfig("progress_style") or "plain"),
+		{ "plain", "wavy", "unique" },
+		"plain"
+	)
+	btnStyle = pick(tostring(noctalia.getConfig("button_style") or "m3"), { "m3", "classic", "round" }, "m3")
 	glassEnabled = noctalia.getConfig("glass_enabled") ~= false
 	glassBlur = tonumber(noctalia.getConfig("glass_blur")) or 24
 	glassOpacity = tonumber(noctalia.getConfig("glass_opacity")) or 55
@@ -519,6 +594,8 @@ function onOpen(context)
 	phase = 0
 	frameSeq = 0
 	lastSeenFrame = 0
+	tickCount = 0
+	state = { volume = 1.0, shuffle = "Off", loop = "None" }
 
 	-- Тики панели: update() на границах секунд (данные) + кадры (плавная
 	-- волна). На хостах без frame-tick данные всё равно обновляются.

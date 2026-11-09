@@ -7,7 +7,7 @@
 id = "obloble/sonara"
 name = "Sonara Player Widget"
 author = "obloble"
-version = "1.0.0"
+version = "1.1.0"
 
 # plugin_api 43: замыкания в ui.* колбэках, noctalia.download.
 # Данные — noctalia.mediaPlayer() (новые хосты) либо MPRIS через gdbus.
