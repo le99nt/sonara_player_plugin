@@ -271,22 +271,34 @@ local function progressBlock()
 	end
 
 	-- Подписи времени: слева — сколько идёт трек, справа — полная
-	-- длительность. space-between вместо пустого row-разделителя
-	-- (пустые ноды рендерились криво).
+	-- длительность. Хост не поддерживает justify=space-between (метки
+	-- слипались в «0:123:45»), поэтому разъезд по краям сделан ширинами:
+	-- [46px elapsed][304px пустой разделитель][46px total, текст по
+	-- правому краю].
+	local sideW = 46
 	return ui.column({ gap = 2, align = "center" }, {
 		bar,
-		ui.row({ gap = 0, width = PROG_W, height = 12, justify = "space-between" }, {
+		ui.row({ gap = 0, width = PROG_W, height = 12 }, {
 			ui.label({
 				key = "t-elapsed",
 				text = shared.fmtTime(pos),
 				fontSize = 10,
 				color = "on_surface_variant",
+				width = sideW,
+			}),
+			ui.label({
+				key = "t-spacer",
+				text = "",
+				fontSize = 10,
+				width = PROG_W - sideW * 2,
 			}),
 			ui.label({
 				key = "t-total",
 				text = shared.fmtTime(len),
 				fontSize = 10,
 				color = "on_surface_variant/0.85",
+				width = sideW,
+				textAlign = "end",
 			}),
 		}),
 	})
