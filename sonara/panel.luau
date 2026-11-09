@@ -271,34 +271,32 @@ local function progressBlock()
 	end
 
 	-- Подписи времени: слева — сколько идёт трек, справа — полная
-	-- длительность. Хост не поддерживает justify=space-between (метки
-	-- слипались в «0:123:45»), поэтому разъезд по краям сделан ширинами:
-	-- [46px elapsed][304px пустой разделитель][46px total, текст по
-	-- правому краю].
-	local sideW = 46
+	-- длительность. Ни justify=space-between, ни width на самих ui.label
+	-- хост не поддерживает (метки слипались в «0:123:45»), поэтому каждая
+	-- метка обёрнута в ui.row фиксированной ширины — ширина у строк
+	-- работает точно (на них нарисованы все кнопки). Правая прижата
+	-- justify="end" + textAlign="end" (двойная страховка).
+	local sideW = 48
 	return ui.column({ gap = 2, align = "center" }, {
 		bar,
 		ui.row({ gap = 0, width = PROG_W, height = 12 }, {
-			ui.label({
-				key = "t-elapsed",
-				text = shared.fmtTime(pos),
-				fontSize = 10,
-				color = "on_surface_variant",
-				width = sideW,
+			ui.row({ key = "tl-left", width = sideW, height = 12 }, {
+				ui.label({
+					text = shared.fmtTime(pos),
+					fontSize = 10,
+					color = "on_surface_variant",
+				}),
 			}),
-			ui.label({
-				key = "t-spacer",
-				text = "",
-				fontSize = 10,
-				width = PROG_W - sideW * 2,
+			ui.row({ key = "tl-mid", width = PROG_W - sideW * 2, height = 12 }, {
+				ui.label({ text = "", fontSize = 10 }),
 			}),
-			ui.label({
-				key = "t-total",
-				text = shared.fmtTime(len),
-				fontSize = 10,
-				color = "on_surface_variant/0.85",
-				width = sideW,
-				textAlign = "end",
+			ui.row({ key = "tl-right", width = sideW, height = 12, justify = "end" }, {
+				ui.label({
+					text = shared.fmtTime(len),
+					fontSize = 10,
+					color = "on_surface_variant/0.85",
+					textAlign = "end",
+				}),
 			}),
 		}),
 	})
